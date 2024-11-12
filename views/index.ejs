@@ -1,0 +1,103 @@
+<!-- views/index.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat App</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="join-container">
+            <input type="text" id="username" placeholder="Enter your name">
+            <input type="text" id="room" placeholder="Enter room name">
+            <button id="join-btn">Join</button>
+        </div>
+        
+        <div class="chat-box">
+            <div id="chat-messages"></div>
+        </div>
+
+        <!-- Display active rooms and users here -->
+        <div id="room-info" class="room-info"></div>
+        <div id="user-info" class="user-info"></div>
+
+        <div class="message-input-container">
+            <input id="message-input" type="text" placeholder="Your message">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentUser = '';  
+        let currentRoom = '';  // Store the current room name
+
+        document.getElementById('join-btn').onclick = () => {
+            const username = document.getElementById('username').value;
+            const room = document.getElementById('room').value;
+            if (username && room) {
+                currentUser = username; 
+                currentRoom = room;
+                socket.emit('joinRoom', { username, room });
+            }
+        };
+
+        function formatTime() {
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const seconds = now.getSeconds().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12; // Convert to 12-hour format
+
+    return `${hours}:${minutes}:${seconds} ${ampm}`;
+}
+        socket.on('message', (message) => {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', message.includes(currentUser + ":") ? 'sender' : 'receiver');
+            // messageElement.textContent = message;
+
+            // Format message with username above
+            if (message.includes(":")) {
+        // Separate username and message content
+        const [username, ...textArr] = message.split(":");
+        const text = textArr.join(":").trim();
+        const time = formatTime();
+
+        // Display with username, timestamp, and message text for user messages
+        messageElement.innerHTML = `
+            <div class="username">${username} <span class="timestamp">${time}</span></div>
+            <div class="text">${text}</div>
+        `;
+    } else {
+        // For system messages, display only the message text without username/timestamp
+        messageElement.classList.add('system-message');
+        messageElement.textContent = message;
+    }
+            document.getElementById('chat-messages').appendChild(messageElement);
+            document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+        });
+
+        // Listen for active rooms
+        socket.on('activeRooms', (rooms) => {
+            document.getElementById('room-info').innerText = `Active Rooms: ${rooms.join(', ')}`;
+        });
+
+        // Listen for users in rooms
+        socket.on('usersInRooms', (usersInRooms) => {
+            const users = usersInRooms[currentRoom] || [];
+            document.getElementById('user-info').innerText = `Users in ${currentRoom}: ${users.join(', ')}`;
+        });
+
+        document.getElementById('send-btn').onclick = () => {
+            const message = document.getElementById('message-input').value;
+            if (message) {
+                socket.emit('chatMessage', message);
+                document.getElementById('message-input').value = '';
+            }
+        };
+    </script>
+</body>
+</html>
